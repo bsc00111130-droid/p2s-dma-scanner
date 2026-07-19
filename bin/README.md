@@ -1,37 +1,34 @@
-# Binary Samples for Static Analysis
+# 바이너리 정적 분석 샘플
 
-These executables are provided for educational static analysis study:
-- Examine PE headers, import tables, section layouts
-- Study PyInstaller bundle structure (CArchive, PYZ, PKG)
-- Analyze manifest embedding (requireAdministrator vs asInvoker)
-- Practice with tools like pestudio, PE-bear, Detect It Easy, pyinstxtractor
+PE 포맷 연구 및 Win32 바이너리 분석 교육 자료.
 
-## Files
+## 파일
 
-| File | Size | Analysis Focus |
-|------|------|----------------|
-| **MSWloader_personal.exe** | 17.3MB | PyInstaller 6.x bundle - study CArchive/PYZ archive structure, python312.dll embedding |
-| **msw_inject.exe** | 141KB | CreateRemoteThread-based DLL injector - IAT, admin manifest |
-| **apc_inject.exe** | 141KB | QueueUserAPC injection variant - thread enumeration, TH32CS_SNAPSNAPTHREAD |
-| **keep_inject.exe** | 141KB | Looping injector - WaitForSingleObject timeout patterns |
-| **p2s_gui.exe** | 186KB | Win32 GUI - GDI object layout, Common Controls, IOCTL dispatch |
+| 파일 | 분석 주제 |
+|------|-----------|
+| `msw_inject.exe` | PE 헤더, IAT(Import Address Table), `requireAdministrator` 매니페스트 |
+| `apc_inject.exe` | `QueueUserAPC` API / `TH32CS_SNAPTHREAD` 사용 패턴 |
+| `keep_inject.exe` | `WaitForSingleObject` 타임아웃 루프 구조 |
+| `p2s_gui.exe` | Win32 GUI — GDI 오브젝트, Common Controls, `DeviceIoControl` |
 
-## Static Analysis Commands
+## 분석 도구
 
 ```powershell
-# PE header analysis
-dumpbin /headers msw_inject.exe
+# PE 헤더 덤프
+dumpbin /headers p2s_gui.exe
 
-# Import Address Table
+# IAT 분석
 dumpbin /imports msw_inject.exe
 
-# Section layout
+# 섹션 레이아웃
 dumpbin /sections apc_inject.exe
 
-# PyInstaller bundle structure (MSWloader_personal.exe)
-pyi-archive_viewer MSWloader_personal.exe
-pyinstxtractor MSWloader_personal.exe
-
-# Manifest extraction
+# 매니페스트 추출
 mt.exe -inputresource:msw_inject.exe -out:manifest.xml
+
+# GUI 리소스 구조 (pestudio, Resource Hacker)
 ```
+
+## 참고
+
+모든 바이너리는 본 저장소의 소스 코드에서 직접 컴파일된 것입니다.
