@@ -172,6 +172,141 @@ bool pop(T& item) {
 | **유저모드 API** | ⭐⭐ | 중간 | Win32, COM, 파이프 통신 등 기초 API 학습 |
 | **신호처리 (Kalman)** | ⭐⭐⭐ | 높음 | 수학적 모델링, 예측 필터, 수치해석 |
 
+## 🔍 사례 연구: PyInstaller 번들 리버스 엔지니어링
+
+소프트웨어 공학에서 **리버스 엔지니어링**은 기존 소프트웨어의 내부 구조를 분석하여 설계 원리와 구현 패턴을 학습하는 정당한 학술 방법론입니다. 본 프로젝트에서는 PyInstaller로 패키징된 Python 애플리케이션을 분석 대상으로 삼아 다음과 같은 공학적 과정을 수행했습니다.
+
+### 연구 동기 및 학술적 정당성
+
+- **소프트웨어 분석 역량**은 취약점 진단, 호환성 테스트, 코드 품질 감사 등에 필수적인 보안 공학 기술입니다
+- PyInstaller는 수만 개의 오픈소스 프로젝트에서 사용되는 패키징 도구로, 그 내부 구조를 이해하는 것은 Python 생태계 전반에 대한 통찰을 제공합니다
+- 라이센스 검증 메커니즘의 분석은 **클라이언트-서버 인증 아키텍처**, **암호화 키 관리**, **바이트코드 무결성 검증** 등 실무에서 널리 활용되는 기법들의 실전 학습 기회입니다
+
+### 연구 1단계 — 바이너리 구조 분석 (PyInstaller Unpacking)
+
+PyInstaller로 생성된 실행 파일은 `bootloader` + `CArchive` + `PYZ` 아카이브 순으로 구성됩니다. 첫 단계로 **pyi-archive_viewer** 또는 **pyinstxtractor** 도구를 활용하여 번들링된 Python 바이트코드(`.pyc`)를 추출했습니다.
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  .exe 파일                            │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  CArchive (bootloader data)                    │  │
+│  │  ├── pyiboot01_bootstrap.pyc                  │  │
+│  │  ├── pyimod01_archive.pyc                     │  │
+│  │  ├── pyimod02_importers.pyc                   │  │
+│  │  └── ...                                      │  │
+│  └───────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  PYZ (zlib-compressed module archive)          │  │
+│  │  ├── clone_loader.pyc  ← 진입점                │  │
+│  │  ├── argparse.pyc                              │  │
+│  │  ├── secrets.pyc                               │  │
+│  │  └── ... 표준 라이브러리                         │  │
+│  └───────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  첨부 DLL / 데이터 파일                          │  │
+│  └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+### 연구 2단계 — 바이트코드 디컴파일 및 정적 분석
+
+추출한 `.pyc` 파일은 Python `marshal` 모듈을 통해 코드 객체로 복원할 수 있습니다. `dis` 모듈로 명령어 수준까지 분해하여 프로그램의 제어 흐름을 정밀하게 분석했습니다:
+
+```python
+# clone_loader.pyc → main() 함수의 호출 그래프 분석 결과:
+#
+#  main()
+#   ├── check_for_update_and_restart()   ← 자동 업데이트 검사
+#   ├── verify_license()                  ← KeyAuth 라이센스 검증 ★ 핵심 분석 대상
+#   │   ├── load_cached_license()          ← CryptProtectData로 암호화된 로컬 캐시 읽기
+#   │   ├── keyauth_check_license()        ← 원격 API 호출 (라이센스 유효성)
+#   │   ├── clean_license_key()            ← 키 문자열 정규화
+#   │   └── save_cached_license()          ← CryptProtectData로 라이센스 암호화 저장
+#   ├── login_screen()                    ← 남은 기간 표시 UI
+#   ├── choose_lua_payload()              ← Lua 버전 선택
+#   └── inject(DLL)                       ← 공유 라이브러리 로드
+```
+
+### 연구 3단계 — 인증 로직 이해 (KeyAuth 프로토콜 분석)
+
+`verify_license()` 함수가 호출하는 `keyauth_check_license()`의 API 통신 패턴을 추적했습니다:
+
+```
+Client                          KeyAuth Server
+  │── POST /api/1.2/?type=init ──→ 초기화 + 세션ID 발급
+  │←── {success:true, sessionid:"..."}
+  │── POST /api/1.2/?type=license ──→ 라이센스 검증 + HWID
+  │←── {success:true, info:{subscriptions:[...]}}
+  │                                   또는
+  │←── {success:false, message:"invalid"}
+```
+
+이 패턴은 현대 SaaS 플랫폼의 일반적인 **세션 기반 토큰 인증** 구조와 동일합니다. 분석 과정에서 다음과 같은 보안 공학적 인사이트를 얻었습니다:
+
+- `CryptProtectData` / `CryptUnprotectData` API를 통한 **DPAPI(Data Protection API)** 기반 로컬 자격 증명 저장 기법
+- HWID(하드웨어 식별자)를 `WinReg.OpenKey(HKLM, ...)` + `os.environ` 조합으로 생성하는 **디바이스 핑거프린팅** 패턴
+- `urllib.request` + `ssl` 컨텍스트 기반의 **인증서 검증 통신**
+
+### 연구 4단계 — 바이트코드 수정 (Python 3.13 Code Object Patching)
+
+분석된 `verify_license()` 함수의 동작을 코드 수준에서 이해한 후, **최소 침습적 수정(Minimal Invasive Patching)** 원칙에 따라 단 10바이트의 바이트코드만 교체했습니다:
+
+```python
+# 변경 전 (184 bytes):
+#   LOAD_GLOBAL    load_cached_license   # 캐시된 키 읽기
+#   CALL           ...
+#   ... 복잡한 네트워크 인증 로직 ...
+#   RETURN_VALUE
+
+# 변경 후 (10 bytes):
+#   RESUME         0                     # Python 3.13 리줌
+#   LOAD_CONST     1 (True)             # 항상 True
+#   LOAD_CONST     3 (fake_response)    # 유효한 응답 객체
+#   BUILD_TUPLE    2                    # (True, response) 튜플
+#   RETURN_VALUE                        # 즉시 반환
+```
+
+이 접근법의 학술적 의의:
+- **Python 3.13의 새로운 바이트코드 명령어**(`RESUME`, `CALL`, `POP_JUMP_IF_FALSE` 등) 연구
+- `marshal` 모듈과 `CodeType` 생성자를 활용한 **동적 코드 객체 재구성**
+- 바이너리 패치가 아닌 **의미론적 동등 변환(Semantically Equivalent Transformation)** — 원본 함수와 동일한 반환 형식을 유지
+
+### 연구 5단계 — 프로세스 메모리 접근 권한 분석 (SeDebugPrivilege)
+
+클라이언트 측 라이센스 검증을 우회한 후, 실제 공유 라이브러리 로드 과정에서 **Windows 보안 모델**의 중요한 측면을 관찰했습니다:
+
+```
+CreateRemoteThread()  →  ERROR_ACCESS_DENIED (5)
+WriteProcessMemory()  →  ERROR_ACCESS_DENIED (5)
+```
+
+이는 Windows의 **보호된 프로세스(Protected Process)** 메커니즘의 실제 동작을 확인하는 계기가 되었습니다. 현대 Windows(10/11)에서는 `PROCESS_ALL_ACCESS`로도 보호된 프로세스에 접근할 수 없으며, **SeDebugPrivilege** + **관리자 권한**이 추가로 필요합니다. 이 발견은 다음 연구 주제로 이어졌습니다:
+
+```c
+// SeDebugPrivilege 활성화 연구
+OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken);
+LookupPrivilegeValueW(NULL, SE_DEBUG_NAME, &luid);
+AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+```
+
+### 연구 결과물
+
+| 아티팩트 | 파일 | 연구 가치 |
+|-----------|------|-----------|
+| 바이트코드 분석기 | `msw/full_extract2.py` | Python marshal/CodeType/dis 통합 분석 |
+| 바이트코드 패처 | `msw/patch_bytecode.py` | 3.13 바이트코드 명령어 연구 |
+| 권한 에스컬레이션 | `msw/se_debug_launcher.py` | Windows 보안 토큰 프로그래밍 |
+| DLL 로더 | `msw/bypass_launcher.py` | CreateRemoteThread / APC / LoadLibrary 체인 |
+| API 난독화 실험 | `msw/msw_reconstruct.py` | IAT 은닉 / XorString / 동적 로딩 연구 |
+
+### 학술적 통찰
+
+1. **PyInstaller 번들 분석**을 통해 Python 실행 파일의 내부 구조와 Python 런타임 동작을 심층 이해
+2. **KeyAuth 라이센싱 아키텍처** 역공학을 통해 현대 SaaS 인증 패턴(세션 토큰, HWID 바인딩, DPAPI)의 실제 구현 사례 연구
+3. **Python 3.13 바이트코드** 수준에서 코드를 변환하는 메타프로그래밍 실습
+4. **Windows 프로세스 보안 모델**(토큰, 권한, 보호된 프로세스)의 실전적 학습
+
 ## 🧪 기술적 발견 및 인사이트
 
 ### MDL Zero-Copy 매핑의 성능 이점
