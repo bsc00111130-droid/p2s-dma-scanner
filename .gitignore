@@ -1,0 +1,53 @@
+# Build artifacts
+build/
+*.obj
+*.exe
+*.sys
+*.dll
+*.pdb
+*.lib
+*.exp
+*.ilk
+*.res
+*.pyc
+__pycache__/
+*.pyo
+.venv/
+venv/
+
+# IDE
+.vs/
+*.suo
+*.user
+*.sln
+*.vcxproj*
+*.filters
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temp
+*.tmp
+*.log
+*.jou
+*.backup.jou
+*.backup.log
+*.zip
+*.7z
+
+# Large binaries
+MSWloader_1023.exe_extracted/
+MSWloader_personal.exe
+PM_runtime_*.lua
+MSWorld.dll
+net_hook.dll
+output_filter.dll
+planet_inject.dll
+
+# Vivado/Xilinx
+vivado_*.log
+vivado_*.jou
+vivado_proj/
+.Xil/

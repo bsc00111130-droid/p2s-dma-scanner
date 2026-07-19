@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proc IOCTL Control Panel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="side-nav" aria-label="Navigation">
+      <div class="brand">
+        <div class="brand-mark">PI</div>
+        <div>
+          <div class="brand-title">Proc IOCTL</div>
+          <div class="brand-subtitle">Control Panel</div>
+        </div>
+      </div>
+      <nav>
+        <a class="nav-item active" href="#runtime">Runtime</a>
+        <a class="nav-item" href="#contract">Contract</a>
+        <a class="nav-item" href="#motion">Motion</a>
+        <a class="nav-item" href="#packet">Packet</a>
+        <a class="nav-item" href="#safety">Safety</a>
+      </nav>
+      <div class="nav-footer">
+        <span class="state-dot safe"></span>
+        <span id="unsafeStatus">Unsafe readmem disabled</span>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <h1>Runtime Console</h1>
+          <p id="driverPath">Device path: \\.\ProcIoctlDemo</p>
+          <div class="health-strip" aria-label="Runtime health">
+            <span id="contractMini" class="mini-status neutral">Contract pending</span>
+            <span id="queueMini" class="mini-status neutral">Queue 0%</span>
+            <span id="serialMini" class="mini-status neutral">Serial dry view</span>
+            <span id="safetyMini" class="mini-status good">Safety locked</span>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button id="startBtn" class="primary">Start</button>
+          <button id="stopBtn">Stop</button>
+          <button id="stepBtn">Step</button>
+          <button id="resetBtn">Reset</button>
+          <button id="copyCommandBtn">Copy command</button>
+        </div>
+      </header>
+
+      <section id="runtime" class="panel-grid">
+        <article class="panel config-panel">
+          <div class="panel-header">
+            <h2>Session</h2>
+            <span id="runtimeStatus" class="badge idle">Idle</span>
+          </div>
+          <div class="form-grid">
+            <label>
+              <span>PID</span>
+              <input id="pidInput" type="number" min="1" value="1234">
+            </label>
+            <label>
+              <span>Address</span>
+              <input id="addressInput" type="text" value="0x7ff700001000" spellcheck="false">
+            </label>
+            <label>
+              <span>Size</span>
+              <input id="sizeInput" type="number" min="1" max="4095" value="128">
+            </label>
+            <label>
+              <span>Mode</span>
+              <select id="modeInput">
+                <option value="ioctl">IOCTL test data</option>
+                <option value="shared">Shared test buffer</option>
+              </select>
+            </label>
+            <label>
+              <span>COM</span>
+              <input id="comInput" type="text" value="COM3" spellcheck="false">
+            </label>
+            <label>
+              <span>Baud</span>
+              <input id="baudInput" type="number" min="9600" max="4000000" value="921600">
+            </label>
+            <label>
+              <span>Rate Hz</span>
+              <input id="rateInput" type="number" min="1" max="5000" value="1000">
+            </label>
+          </div>
+          <div class="preset-row" aria-label="Rate presets">
+            <button type="button" class="small" data-rate="250">250 Hz</button>
+            <button type="button" class="small" data-rate="1000">1 kHz</button>
+            <button type="button" class="small" data-rate="2000">2 kHz</button>
+            <button type="button" class="small" data-rate="5000">5 kHz</button>
+          </div>
+          <div class="command-line" id="commandLine"></div>
+        </article>
+
+        <article class="panel metrics-panel">
+          <div class="panel-header">
+            <h2>Telemetry</h2>
+            <span id="tickLabel" class="badge">seq 0</span>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>Produced</span><strong id="producedMetric">0</strong></div>
+            <div class="metric"><span>Sent</span><strong id="sentMetric">0</strong></div>
+            <div class="metric"><span>Dropped</span><strong id="droppedMetric">0</strong></div>
+            <div class="metric"><span>Backpressure</span><strong id="busyMetric">0</strong></div>
+            <div class="metric"><span>Queue</span><strong id="queueMetric">0%</strong></div>
+            <div class="metric"><span>Latency</span><strong id="latencyMetric">0.00 ms</strong></div>
+          </div>
+        </article>
+
+        <article class="panel wide">
+          <div class="panel-header">
+            <h2>Queue Timeline</h2>
+            <span id="timerMode" class="badge good">QPC timer model</span>
+          </div>
+          <canvas id="timelineCanvas" width="960" height="220" aria-label="Queue timeline"></canvas>
+        </article>
+      </section>
+
+      <section id="contract" class="panel-grid two-column">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Validation</h2>
+            <span id="contractBadge" class="badge idle">Unchecked</span>
+          </div>
+          <div class="check-list">
+            <div class="check-row" id="pidCheck"><span></span><strong>PID present</strong><em></em></div>
+            <div class="check-row" id="sizeCheck"><span></span><strong>Size below 4 KB</strong><em></em></div>
+            <div class="check-row" id="addressCheck"><span></span><strong>User address range</strong><em></em></div>
+            <div class="check-row" id="overflowCheck"><span></span><strong>Overflow guard</strong><em></em></div>
+            <div class="check-row" id="readmemCheck"><span></span><strong>Readmem dispatch</strong><em>disabled</em></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Payload Preview</h2>
+            <span id="payloadSizeBadge" class="badge">0 bytes</span>
+          </div>
+          <pre id="payloadPreview" class="hex-view"></pre>
+        </article>
+      </section>
+
+      <section id="motion" class="panel-grid two-column">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Motion Filter</h2>
+            <span id="filterBadge" class="badge good">stable</span>
+          </div>
+          <div class="slider-grid">
+            <label class="range-row"><span>Noise <output id="noiseValue">8</output></span><input id="noiseInput" type="range" min="0" max="24" value="8"></label>
+            <label class="range-row"><span>Process Q <output id="processValue">18</output></span><input id="processInput" type="range" min="1" max="100" value="18"></label>
+            <label class="range-row"><span>Measure R <output id="measureValue">32</output></span><input id="measureInput" type="range" min="1" max="100" value="32"></label>
+            <label class="range-row"><span>Max Step <output id="stepValue">18</output></span><input id="stepInput" type="range" min="1" max="60" value="18"></label>
+          </div>
+          <canvas id="motionCanvas" width="540" height="320" aria-label="Motion filter plot"></canvas>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Current Vector</h2>
+            <span id="vectorBadge" class="badge">0, 0</span>
+          </div>
+          <div class="vector-readout">
+            <div><span>raw x</span><strong id="rawXMetric">0.00</strong></div>
+            <div><span>raw y</span><strong id="rawYMetric">0.00</strong></div>
+            <div><span>filtered x</span><strong id="filteredXMetric">0.00</strong></div>
+            <div><span>filtered y</span><strong id="filteredYMetric">0.00</strong></div>
+            <div><span>step x</span><strong id="stepXMetric">0</strong></div>
+            <div><span>step y</span><strong id="stepYMetric">0</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="packet" class="panel-grid two-column">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Packetizer</h2>
+            <div class="header-actions">
+              <span id="packetBadge" class="badge good">8 bytes</span>
+              <button id="copyPacketBtn" class="small" type="button">Copy</button>
+            </div>
+          </div>
+          <div class="form-grid compact">
+            <label><span>Header</span><input id="headerInput" type="text" value="0xA55A" spellcheck="false"></label>
+            <label><span>Command</span><input id="commandInput" type="text" value="0x01" spellcheck="false"></label>
+            <label><span>Checksum</span><select id="checksumInput"><option value="sum8">sum8</option><option value="xor8">xor8</option><option value="twos">twos</option></select></label>
+            <label><span>Scale</span><input id="scaleInput" type="number" min="0.1" max="20" step="0.1" value="1.0"></label>
+          </div>
+          <pre id="packetHex" class="packet-view">5A A5 01 00 00 00 00 00</pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Serial Writer</h2>
+            <span id="serialBadge" class="badge idle">dry view</span>
+          </div>
+          <div class="slot-grid" id="slotGrid" aria-label="Overlapped serial slots"></div>
+          <div class="serial-note">
+            <span>Baud</span><strong id="baudMetric">921600</strong>
+            <span>Slots</span><strong id="slotCountMetric">8</strong>
+            <span>Write mode</span><strong>overlapped</strong>
+          </div>
+        </article>
+      </section>
+
+      <section id="safety" class="panel-grid two-column">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Safety Boundary</h2>
+            <span class="badge good">locked</span>
+          </div>
+          <div class="boundary-grid">
+            <div><strong>No target memory copy</strong><span>active code search: clear</span></div>
+            <div><strong>No CR3/PTE path</strong><span>not present</span></div>
+            <div><strong>No kernel bypass dispatch</strong><span>not exported</span></div>
+            <div><strong>Test payload only</strong><span>deterministic seed</span></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Event Log</h2>
+            <div class="header-actions">
+              <button id="clearLogBtn" class="small">Clear</button>
+            </div>
+          </div>
+          <div id="eventLog" class="event-log" aria-live="polite"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

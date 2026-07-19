@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+build/
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.sys
+*.inf2cat.log
+
+node_modules/
+npm-debug.log*

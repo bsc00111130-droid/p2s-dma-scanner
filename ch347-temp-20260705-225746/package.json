@@ -1,0 +1,14 @@
+{
+  "name": "proc-ioctl-safe-controller",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "start": "python gui/serve_gui.py",
+    "gui": "powershell -NoProfile -ExecutionPolicy Bypass -File gui/launch_gui.ps1",
+    "safety": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify_safe_surface.ps1",
+    "build:user": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_user.ps1",
+    "build:driver": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_driver.ps1",
+    "build": "npm run build:user && npm run build:driver",
+    "check": "node --check gui/app.js && python -m py_compile gui/serve_gui.py && powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify_safe_surface.ps1"
+  }
+}

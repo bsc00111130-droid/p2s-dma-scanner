@@ -1,0 +1,39 @@
+[Version]
+Signature="$WINDOWS NT$"
+Class=Sample
+ClassGuid={78A1C341-4539-11D3-B88D-00C04FAD5171}
+Provider=%ProviderName%
+DriverVer=07/05/2026,1.0.0.0
+CatalogFile=BufferedPidIoctlDriver.cat
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir=12
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTamd64
+
+[Standard.NTamd64]
+%DeviceName%=Install, Root\BufferedPidIoctl
+
+[Install.NT]
+CopyFiles=DriverCopyFiles
+
+[DriverCopyFiles]
+BufferedPidIoctlDriver.sys
+
+[Install.NT.Services]
+AddService=BufferedPidIoctlDriver,0x00000002,ServiceInstall
+
+[ServiceInstall]
+DisplayName=%ServiceName%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%12%\BufferedPidIoctlDriver.sys
+
+[Strings]
+ProviderName="LocalDev"
+ManufacturerName="LocalDev"
+DeviceName="Buffered PID IOCTL sample device"
+ServiceName="BufferedPidIoctlDriver"
