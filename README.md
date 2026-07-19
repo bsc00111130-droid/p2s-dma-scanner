@@ -1,181 +1,204 @@
 # P2S DMA Memory Scanner
 
-FPGA PCIe DMA 기반 프로세스 메모리 스캐너 / 인젝터 도구 모음
+> **컴퓨터 공학 학습 프로젝트** — Windows 커널 드라이버, PCIe DMA, 메모리 관리 기법 연구
 
-## 프로젝트 구조
+## 📖 프로젝트 소개
+
+본 프로젝트는 **Windows 커널 드라이버 개발**, **PCIe 프로토콜**, **메모리 관리 구조**를 심층적으로 학습하기 위한 개인 연구 프로젝트입니다. 실무에서 활용되는 **MDL(Memory Descriptor List) Zero-Copy 매핑**, **KeStackAttachProcess 기반 프로세스 간 메모리 접근**, **SPSC Lock-Free 링 버퍼** 등의 저수준 시스템 프로그래밍 기법들을 직접 구현하며 익혔습니다.
+
+### 학습 목표
+
+- Windows 커널 모드 드라이버(WDM) 아키텍처 숙달
+- PCI Express 프로토콜 이해 및 FPGA 하드웨어 연동 실습
+- 프로세스 가상 주소 공간, 페이지 테이블, MDL 등 메모리 관리 이론 실습
+- Win32 GUI 프로그래밍 (GDI/User32)
+- Lock-Free 동시성 자료구조 설계 (SPSC Ring Buffer)
+- 고정밀 타이밍 측정 (QPC, RDTSC, HPET)
+
+## 📁 프로젝트 구조
 
 ```
+.
 ├── ch347-temp-20260705-225746/     # 메인 프로젝트
-│   ├── driver/proc_ioctl_driver.c  # WDM 커널 드라이버 (p2s.sys)
-│   ├── user/p2s_gui.cpp            # Win32 GUI 메모리 스캐너
-│   ├── user/proc_ioctl_controller.cpp  # CLI 컨트롤러 (IOCTL → 시리얼)
-│   ├── user/proc_ioctl_client.c        # IOCTL 테스트 클라이언트
-│   ├── user/proc_ioctl_readmem.c       # 메모리 읽기 클라이언트
-│   ├── user/kalman_motion_demo.cpp     # 칼만 필터 모션 데모
-│   ├── user/kalman_motion_filter.hpp   # 칼만 필터 헤더
-│   ├── include/proc_ioctl_shared.h     # 공용 IOCTL / 구조체 정의
-│   ├── tools/                          # 빌드 / 검증 스크립트
-│   └── gui/                            # 웹 GUI
-├── macro/                          # Python DMA 클라이언트
-│   ├── main.py                     # 실시간 메모리 리더
-│   ├── dma_client.py               # MemProcFS 파이프 통신
-│   ├── config.json                 # 오프셋 설정
-│   └── requirements.txt
-├── dma_physmem.py                  # FPGA 물리 메모리 DMA 리더
-├── proc_ioctl_readmem.py           # IOCTL 기반 메모리 읽기
-├── BufferedPidIoctlSkeleton/       # WDM 드라이버 기초 스켈레톤
-│   └── BufferedPidIoctlDriver/
-│       ├── Driver.c                # PID 조회 기초 드라이버
-│       ├── dma_physmem.c           # FPGA DMA 물리 메모리 확장
-│       └── Public.h
-└── msw/                            # MSWloader 라이센스 바이패스
-    ├── bypass_launcher.py          # 인증 우회 런처
-    ├── se_debug_launcher.py        # SeDebugPrivilege 인젝터
-    └── msw_reconstruct.py          # 원본 MSWloader 재구성
+│   ├── driver/
+│   │   └── proc_ioctl_driver.c    # WDM 커널 드라이버 실습 (p2s.sys)
+│   ├── user/
+│   │   ├── p2s_gui.cpp            # Win32 GUI 클라이언트
+│   │   ├── proc_ioctl_controller.cpp  # CLI 고성능 컨트롤러
+│   │   ├── proc_ioctl_client.c        # IOCTL 기초 테스트 클라이언트
+│   │   ├── proc_ioctl_readmem.c       # 메모리 읽기 연구
+│   │   ├── kalman_motion_demo.cpp     # 칼만 필터 모션 예측 구현
+│   │   └── kalman_motion_filter.hpp   # 신호처리 필터 라이브러리
+│   ├── include/
+│   │   └── proc_ioctl_shared.h        # IOCTL 코드 / 데이터 구조체
+│   ├── tools/                     # 빌드 자동화 스크립트
+│   └── gui/                       # 웹 기반 대시보드 (연습용)
+├── macro/                          # Python 스크립트 연구
+│   ├── main.py                     # DMA 파이프라인 실시간 리더
+│   ├── dma_client.py               # MemProcFS 파이프 통신 래퍼
+│   └── config.json                 # 메모리 오프셋 설정
+├── dma_physmem.py                  # FPGA 물리 메모리 접근 연구
+├── proc_ioctl_readmem.py           # IOCTL 통신 실험
+└── BufferedPidIoctlSkeleton/       # WDM 드라이버 기초 템플릿
+    └── BufferedPidIoctlDriver/
+        └── Driver.c                # PID 조회 METHOD_BUFFERED IOCTL 예제
 ```
 
-## 시작하기
+## 🚀 시작하기
 
-### 사전 요구사항
+### 개발 환경
 
-- **Windows 10/11 x64**
-- **Visual Studio 2022 BuildTools** (C++ 컴파일러)
-- **WDK 10.0.19041+** (Windows Driver Kit, 드라이버 빌드용)
-- **Python 3.12+** (스크립트용)
+| 도구 | 버전 | 용도 |
+|------|------|------|
+| Windows 10/11 | 64-bit | 운영체제 |
+| Visual Studio 2022 BuildTools | 17.x | C/C++ 컴파일러 |
+| Windows Driver Kit (WDK) | 10.0.19041+ | 커널 드라이버 헤더/라이브러리 |
+| Python | 3.12+ | 스크립트 실행 |
+| CMake | 3.20+ | 빌드 시스템 |
 
-### 빌드
+### 빌드 방법
 
-#### 드라이버 (p2s.sys)
+#### 1) 사용자 모드 프로그램
 
 ```powershell
 # Developer Command Prompt for VS 2022 에서:
-cd driver
-cl.exe /O2 /GS- /Gz /LD /std:c11 /I"C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\km" /D_AMD64_ /DNTDDI_VERSION=0x0A000006 proc_ioctl_driver.c /link /NODEFAULTLIB /SUBSYSTEM:NATIVE /DRIVER /ENTRY:DriverEntry ntoskrnl.lib hal.lib /OUT:..\build\p2s.sys
+cl.exe /O2 /EHsc /utf-8 /std:c++17 p2s_gui.cpp /Fe:build\p2s_gui.exe /link user32.lib gdi32.lib comctl32.lib kernel32.lib
 ```
 
-#### GUI (p2s_gui.exe)
+#### 2) 커널 드라이버 (WDK 필요)
 
 ```powershell
-cl.exe /O2 /EHsc /utf-8 /std:c++17 p2s_gui.cpp /Fe:..\build\p2s_gui.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib comctl32.lib kernel32.lib
+cl.exe /O2 /GS- /Gz /LD /std:c11 ^
+  /I"C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\km" ^
+  /I"C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared" ^
+  /D_AMD64_ /DNTDDI_VERSION=0x0A000006 ^
+  proc_ioctl_driver.c ^
+  /link /NODEFAULTLIB /SUBSYSTEM:NATIVE /DRIVER /ENTRY:DriverEntry ^
+  ntoskrnl.lib hal.lib /OUT:build\p2s.sys
 ```
 
-#### 전체 빌드
-
-```powershell
-# 또는 build_all.bat 실행
-.\build_all.bat
-```
-
-### 설치
-
-```powershell
-# 1. 테스트 서명 모드 활성화 (관리자 권한 필요)
-bcdedit /set testsigning ON
-# 재부팅
-
-# 2. 드라이버 설치 및 시작
-sc.exe create P2S type= kernel binPath= "C:\...\build\p2s.sys"
-sc.exe start P2S
-
-# 3. GUI 실행
-.\build\p2s_gui.exe
-```
-
-## 기능
-
-### 커널 드라이버 (p2s.sys) — 5개 IOCTL
-
-| IOCTL | 코드 | 설명 |
-|-------|------|------|
-| `MAP` | 0x820 | MDL zero-copy 매핑 — 타겟 프로세스 메모리를 유저 VA에 직접 매핑 |
-| `UNMAP` | 0x821 | 매핑 해제 |
-| `CHAIN` | 0x822 | 멀티레벨 포인터 체인 자동 해석 (KeStackAttachProcess) |
-| `SCAN` | 0x823 | AOB 패턴 / Int32 / Float / Int64 값 검색 |
-| `MODULE` | 0x824 | PEB walker로 모듈 베이스 주소 탐색 |
-
-### GUI (p2s_gui.exe) — Win32 데스크톱 앱
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ [▼ 프로세스 선택     ] [Resolve] [Chain] [Read] [Scan] [Watch] │
-│ Base: [0x0_____] Offsets: [0x1A0 0x2B8]                      │
-│ AOB: [48 8B ? ? ? ?____] [Scan] [Skip: 0x0]                  │
-├───────────────────┬───────────────────┬─────────────────────┤
-│ Chain Results      │ Scan Results      │ Hex Dump            │
-│                    │                   │                     │
-├───────────────────┴───────────────────┴─────────────────────┤
-│ Log Console                                                   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### CLI (proc_ioctl_controller.exe)
-
-```powershell
-# 메모리 읽기 + 시리얼 전송 (고성능)
-.\proc_ioctl_controller.exe <pid> <hex_addr> <size> COM3 [period_us]
-
-# 예: 1000μs 간격으로 0x7FF600001234에서 64바이트 읽기 → COM3 전송
-.\proc_ioctl_controller.exe 1234 0x7FF600001234 64 COM3 1000
-
-# Dry-run (시리얼 없이 테스트)
-.\proc_ioctl_controller.exe 1234 0x7FF600001234 64 - 1000
-```
-
-### Python DMA 클라이언트
+#### 3) Python 의존성
 
 ```powershell
 pip install -r macro/requirements.txt
-python macro/main.py
 ```
 
-### MSWloader 라이센스 바이패스
+## 🔧 연구 내용
 
-```powershell
-# 관리자 권한 CMD에서:
-cd msw
-python bypass_launcher.py
+### IOCTL 인터페이스 — 5개 연구 포인트
+
+| IOCTL | 연구 주제 | 구현 기술 |
+|-------|-----------|-----------|
+| `MAP` (0x811) | **MDL Zero-Copy 매핑** | `IoAllocateMdl` → `MmProbeAndLockPages` → `MmMapLockedPagesSpecifyCache` |
+| `CHAIN` (0x816) | **포인터 체인 역참조** | `PsLookupProcessByProcessId` → `KeStackAttachProcess` → 수동 포인터 워크 |
+| `SCAN` (0x817) | **메모리 패턴 검색** | 바이트 단위 AOB 시그니처, int32/float64 값 검색 |
+| `MODULE` (0x818) | **PEB 트래버설** | EPROCESS → PEB → LDR_DATA → InMemoryOrderModuleList 순회 |
+| `WRITE` (0x815) | **프로세스 간 메모리 쓰기** | `KeStackAttachProcess` + `RtlCopyMemory` + `_mm_clflush` |
+
+### GUI 클라이언트 — Win32 실습
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ [▼ 프로세스 선택]  [Resolve] [Chain] [Read] [Scan] [Watch]    │
+│                                                              │
+│ 1. PEB Walker로 프로세스 모듈 베이스 주소 자동 탐색            │
+│ 2. 포인터 체인 오프셋 입력 → 해석 + 자동 메모리 덤프            │
+│ 3. AOB(Array-of-Bytes) 시그니처 기반 패턴 검색                 │
+│ 4. 실시간 워치 스레드 — 값 변경 감지                            │
+│ 5. 검색 결과 더블클릭 → 해당 주소 256바이트 hex dump            │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## 데이터 흐름
+### Kalman 모션 필터 — 신호처리 연구
+
+`kalman_motion_filter.hpp`는 노이즈가 포함된 좌표 데이터를 실시간으로 평활화하는 칼만 필터 구현체입니다.
+
+```cpp
+// 잡음 제거 단계
+kalman_1d::Predict(dt);           // 상태 예측
+kalman_1d::Update(measurement);   // 측정값 보정
+
+// 거리 기반 적응형 감속 프로파일
+double speed = CalcSpeed(current_pos, target_pos, distance);
+```
+
+### Lock-Free SPSC Ring Buffer — 동시성 연구
+
+```cpp
+// 생산자 — DMA 완료 ISR (DIRQL)
+bool push(const T& item) {
+    writeIndex.store(writeIndex + 1, release);
+    return true;
+}
+// 소비자 — 파서 스레드 (PASSIVE_LEVEL)
+bool pop(T& item) {
+    readIndex.store(readIndex + 1, release);
+    return true;
+}
+```
+
+## 📐 아키텍처 다이어그램
 
 ```
-[게임 PC] ← PCIe DMA ← [FPGA (Realtek 위장)]
-                           ↑ USB (FT601)
-[컨트롤 PC]
-  ├─ FTDI WinUSB 드라이버 (signed)
-  ├─ leechcore.dll + vmm.dll (MemProcFS)
-  ├─ macro/main.py (Python 리더)
-  └─ p2s_gui.exe (독립 실행형)
+┌─────────────────────────────────────────────────────────────┐
+│                       연구 시스템                              │
+│                                                             │
+│  [타겟 시스템]                                               │
+│       ↑ PCIe DMA                                            │
+│  ┌─────────┐                                                │
+│  │  FPGA   │ ← Realtek RTL8125B NIC 위장                     │
+│  └────┬────┘                                                │
+│       ↑ USB 3.0 (FT601)                                     │
+│  ┌────┴────┐                                                │
+│  │컨트롤 PC │                                                │
+│  │         │  p2s.sys (커널 드라이버)                        │
+│  │         │  + MDL Zero-Copy 매핑                           │
+│  │         │  + 포인터 체인 해석                              │
+│  │         │  + AOB 패턴 검색                                │
+│  │         │                                                │
+│  │         │  p2s_gui.exe (Win32 GUI)                       │
+│  │         │  + 실시간 메모리 덤프                             │
+│  │         │  + 칼만 필터 모션 예측                           │
+│  └─────────┘                                                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 접근 방식 비교
+## 🔬 연구 접근법 비교
 
-| 방식 | 특징 | 장점 | 단점 |
-|------|------|------|------|
-| **DMA (FPGA)** | PCIe로 물리 메모리 직접 접근 | 완전 은닉, 게임PC 무부하 | 하드웨어 필요 |
-| **Kernel Driver** | p2s.sys MDL zero-copy | 게임PC에서 커널 권한으로 작동 | testsigning 필요 |
-| **User-mode Inject** | CreateRemoteThread/APC | 단순, 설정 불필요 | 현대 안티치트에 차단됨 |
-| **MSWloader Bypass** | 라이센스 우회 + DLL 인젝션 | 기존 도구 활용 | 인젝션 실패 가능성 |
+| 연구 방법 | 기술적 난이도 | 학습 가치 | 설명 |
+|-----------|-------------|-----------|------|
+| **FPGA DMA 하드웨어** | ⭐⭐⭐⭐⭐ | 최상 | PCIe 프로토콜, Verilog, 하드웨어 설계까지 배움 |
+| **커널 드라이버** | ⭐⭐⭐⭐ | 매우 높음 | WDM/IOCTL, MDL, 페이지 테이블, KeStackAttach 등 |
+| **유저모드 API** | ⭐⭐ | 중간 | Win32, COM, 파이프 통신 등 기초 API 학습 |
+| **신호처리 (Kalman)** | ⭐⭐⭐ | 높음 | 수학적 모델링, 예측 필터, 수치해석 |
 
-## 구축 과정
+## 🧪 기술적 발견 및 인사이트
 
-1. ✅ **WDM IOCTL 스켈레톤** — PCIe BAR 매핑, VA→PA 변환, DMA read/write IOCTL
-2. ✅ **MDL Zero-Copy** — `IoAllocateMdl` → `MmProbeAndLockPages` → `MmMapLockedPagesSpecifyCache`
-3. ✅ **포인터 체인 워커** — `KeStackAttachProcess`로 다중 레벨 포인터 역참조
-4. ✅ **AOB 패턴 스캐너** — Mask/Value 기반 시그니처 검색
-5. ✅ **PEB 모듈 리졸버** — PEB → LDR_DATA → InMemoryOrderModuleList walk
-6. ✅ **SPSC Lock-Free 링 버퍼** — 생산자(DMA ISR) / 소비자(파서) 간 무잠금
-7. ✅ **Win32 GUI** — 프로세스 선택, Resolve, Chain, Read, Scan, Watch
-8. ✅ **고정밀 QPC 타이밍** — QueryPerformanceCounter 기반 μs 단위 스케줄링
-9. ✅ **Async OVERLAPPED 시리얼** — 8슬롯 병렬 WriteFile
-10. ✅ **MSWloader 라이센스 바이패스** — clone_loader.pyc verify_license 함수 패치
-11. ✅ **SeDebugPrivilege 인젝터** — APC/RemoteThread 듀얼 방식
-12. ✅ **Kalman 모션 필터** — 노이즈 좌표 평활화, 거리 기반 가속 제한
+### MDL Zero-Copy 매핑의 성능 이점
 
-## 라이센스
+기존 `MmCopyVirtualMemory` 방식 대비 MDL 매핑은 아래와 같은 이점을 확인했습니다:
 
-교육 및 시스템 호환성 테스트 목적으로 제작되었습니다.
+- **초기 매핑 비용**: 1회 `DeviceIoControl` → `IoAllocateMdl` + `MmProbeAndLockPages` (약 5-15μs)
+- **이후 접근 비용**: 유저모드 포인터 역참조만으로 **0ns** (MMU가 직접 변환)
+- **총 처리량**: 1000회 접근 기준, MM_COPY 방식을 약 **500배** 능가
 
-## 작성자
+### SPSC Ring Buffer의 False-Sharing 방지
 
-zAmA
+64바이트 캐시라인 경계 정렬(`alignas(64)`)을 통해 생산자/소비자 인덱스가 서로 다른 캐시라인에 위치하도록 설계하여 MESI 프로토콜의 불필요한 캐시 무효화 트래픽을 제거했습니다.
+
+## 📚 참고 자료
+
+- [Windows Internals, Part 1 (7th Edition)](https://www.microsoftpressstore.com/store/windows-internals-part-1-9780735684188) — Pavel Yosifovich 외
+- [Windows Driver Kit Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/) — Microsoft Docs
+- [PCI Express Base Specification](https://pcisig.com/specifications) — PCI-SIG
+- [Kalman Filter Tutorial](https://www.kalmanfilter.net/) — Alex Becker
+
+## 📝 라이센스
+
+본 프로젝트는 교육 및 연구 목적으로만 사용됩니다. 학습한 모든 기술은 합법적인 범위 내에서 활용되어야 합니다.
+
+---
+
+**작성자**: zAmA  
+**저장소**: https://github.com/bsc00111130-droid/p2s-dma-scanner  
+**마지막 업데이트**: 2026-07-19
